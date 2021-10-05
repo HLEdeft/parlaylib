@@ -11,7 +11,8 @@
 #include "trigram_words.h"
 #include <vector>
 using benchmark::Counter;
-int testid[] = {7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,24,25,26,27,28,29,30,33,34,35,36,37,38,41,42,43,44,45,46,47,48};
+int testid[] = {7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 24, 25, 26,
+                27, 28, 29, 30, 33, 34, 35, 36, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48};
 int uniform[] = {0,     0,     0,     0,     10,     100,     1000,     5000,      7000,      8000,
                  10000, 15000, 20000, 50000, 100000, 1000000, 10000000, 100000000, 1000000000};
 int zipfan[] = {10000, 100000, 1000000, 10000000, 100000000, 1000000000};
@@ -114,13 +115,62 @@ void scan_inplace__(uint32_t* in, uint32_t n) {
       1);
   delete[] offset;
 }
+// void zipfian_generator_int64_ (mypair<uint64_t, uint64_t> *A,
+//                                int n, uint32_t zipf_s) {
+//     sequence<uint32_t> nums(zipf_s); // in total zipf_s kinds of keys
+//     sequence<mypair<uint64_t, uint64_t>> B(n);
+
+//     /* 1. making nums[] array */
+//     uint32_t number = (uint32_t) (n / log(n)); // number= n/ln(n)
+//     parallel_for (0, zipf_s, [&] (uint32_t i) {
+//         nums[i] = (uint32_t) (number / (i+1));
+//     }, 1);
+
+//     // the last nums[zipf_s-1] should be (n - \sum{zipf_s-1}nums[])
+//     uint32_t offset = reduce(nums, addm<uint32_t>()); // cout << "offset = " << offset << endl;
+//     // nums[zipf_s-1] += (n - offset);
+//     nums[0] += (n - offset);
+
+//     // checking if the sum of nums[] equals to n
+//     if (reduce(nums, addm<uint32_t>()) == (uint32_t)n) {
+//         cout << "sum of nums[] == n" << endl;
+//     }
+
+//     /* 2. scan to calculate position */
+//     uint32_t* addr = new uint32_t[zipf_s];
+//     parallel_for (0, zipf_s, [&] (uint32_t i) {
+//         addr[i] = nums[i];
+//     }, 1);
+//     scan_inplace__(addr, zipf_s); // store all addresses into addr[]
+
+//     /* 3. distribute random numbers into A[i].first */
+//     parallel_for (0, zipf_s, [&] (uint32_t i) {
+//         uint32_t st = (i == 0) ? 0 : addr[i-1],
+//                  ed = (i == zipf_s-1) ? n : addr[i];
+//         for (uint32_t j = st; j < ed; j++) {
+//             B[j].first = parlay::hash64_2(i);
+//         }
+//     }, 1);
+//     parallel_for (0, n, [&] (size_t i){
+//         B[i].second = parlay::hash64_2(i);
+//     }, 1);
+
+//     /* 4. shuffle the keys */
+//     // random_shuffle(A, A + n);
+//     sequence<mypair<uint64_t, uint64_t>> C = parlay::random_shuffle(B, n);
+
+//     parallel_for (0, n, [&] (size_t i) {
+//         A[i] = C[i];
+//     });
+
+//     delete[] addr;
+// }
 void zipfian_generator_int64_(uint64_t zipf_s, int line, parlay::sequence<std::pair<uint64_t, uint64_t>>& A) {
   // pbbs::sequence<uint64_t> nums(zipf_s); // in total zipf_s kinds of keys
   int n = 1000000000;
   parlay::sequence<uint32_t> nums(zipf_s);  // in total zipf_s kinds of keys
   parlay::sequence<std::pair<uint64_t, uint64_t>> B(n);
   parlay::sequence<std::pair<uint64_t, uint64_t>> C(n);
-
   /* 1. making nums[] array */
   uint32_t number = (uint32_t)(n / log(n));  // number= n/ln(n)
   parlay::parallel_for(
@@ -145,7 +195,7 @@ void zipfian_generator_int64_(uint64_t zipf_s, int line, parlay::sequence<std::p
   /* 3. distribute random numbers into A[i].first */
   parlay::parallel_for(
       0, zipf_s,
-      [&](size_t i) {
+      [&](uint32_t i) {
         uint32_t st = (i == 0) ? 0 : addr[i - 1], ed = (i == zipf_s - 1) ? n : addr[i];
         for (uint32_t j = st; j < ed; j++) {
           B[j].first = parlay::hash64_2(i);
@@ -158,13 +208,12 @@ void zipfian_generator_int64_(uint64_t zipf_s, int line, parlay::sequence<std::p
   /* 4. shuffle the keys */
   // random_shuffle(A, A + n);
   C = parlay::random_shuffle(B, n);
-  parlay::parallel_for(0, n, [&](uint32_t i) {
+  parlay::parallel_for(0, n, [&](size_t i) {
     A[i].first = C[i].first;
     A[i].second = C[i].second;
   });
   // parlay::sequence<std::pair<uint64_t, uint64_t>> s(n);
   std::cout << "running test of zipfan line " << line << std::endl;
-
 }
 void exponential_generator_int64_(int exp_cutoff, double exp_lambda, int line,
                                   parlay::sequence<std::pair<uint64_t, uint64_t>>& A) {
@@ -200,7 +249,7 @@ void exponential_generator_int64_(int exp_cutoff, double exp_lambda, int line,
       },
       1);
   parlay::parallel_for(
-     0, n, [&](size_t i) { B[i].second = parlay::hash64_2(i); }, 1);
+      0, n, [&](size_t i) { B[i].second = parlay::hash64_2(i); }, 1);
 
   /* 4. shuffle the keys */
   delete[] addr;
@@ -479,6 +528,55 @@ static void bench_histogram_few(benchmark::State& state) {
 }
 
 template<typename T>
+static void bench_integer_sort_inplace(benchmark::State& state) {
+  // size_t n = state.range(0);
+  using par = std::pair<T, T>;
+  // parlay::random r(0);
+  size_t bits = sizeof(T) * 8;
+  // auto S = parlay::tabulate(n, [&](size_t i) -> par { return par(r.ith_rand(i), i); });
+  auto first = [](par a) { return a.first; };
+  size_t n = 1000000000;
+  size_t testid = state.range(0);
+  parlay::sequence<std::pair<uint64_t, uint64_t>> in(n);
+  if (testid > 3 && testid < 19)
+    test_uniform(uniform[testid], testid, in);
+  else if (testid > 29 && testid < 36)
+    zipfian_generator_int64_(zipfan[testid - 29], testid, in);
+  else if (testid > 20 && testid < 28) {
+    exponential_generator_int64_(1000000, exp_lambda[testid - 21], testid, in);
+  } else {
+    switch (testid) {
+      case 38: testgraph("/data/zwang358/semisort/graph/com-orkut.txt", in); break;
+      case 39: testgraph("/data/zwang358/semisort/graph/twitter.txt", in); break;
+      case 40: testgraph("/data/zwang358/semisort/graph/yahoo_g9.txt", in); break;
+      case 41: testgraph("/data/zwang358/semisort/graph/sd_arc.txt", in); break;
+      case 42: testgraph("/data/zwang358/semisort/graph/enwiki.txt", in); break;
+      case 43: testgraph("/data/zwang358/semisort/graph/webbase2001.txt", in); break;
+      case 44: testgraph("/data/zwang358/semisort/graph/uk2002.txt", in); break;
+      default: break;
+    }
+  }
+  auto out = in;
+  while (state.KeepRunningBatch(10)) {
+    for (int i = 0; i < 10; i++) {
+      COPY_NO_TIME(out, in);
+      // parlay::internal::sample_sort_inplace(parlay::make_slice(out), std::less<T>());
+
+      parlay::internal::integer_sort_inplace(parlay::make_slice(out),
+                                             [](const auto& x) -> unsigned long { return x.first; });
+    }
+  }
+
+  while (state.KeepRunningBatch(10)) {
+    for (int i = 0; i < 10; i++) {
+      RUN_AND_CLEAR(parlay::internal::integer_sort(parlay::make_slice(in), first, bits));
+    }
+  }
+
+  REPORT_STATS(n, 0, 0);
+}
+
+template<typename T>
 static void bench_integer_sort_pair(benchmark::State& state) {
   // size_t n = state.range(0);
   using par = std::pair<T, T>;
@@ -577,13 +675,10 @@ static void bench_stable_sort(benchmark::State& state) {
       default: break;
     }
   }
-  auto less_pair = [&](std::pair<uint64_t, uint64_t> a,
-                       std::pair<uint64_t, uint64_t> b) {
-    return a.first < b.first;
-  };
+  auto less_pair = [&](std::pair<uint64_t, uint64_t> a, std::pair<uint64_t, uint64_t> b) { return a.first < b.first; };
   while (state.KeepRunningBatch(10)) {
     for (int i = 0; i < 10; i++) {
-      RUN_AND_CLEAR(parlay::internal::sample_sort(parlay::make_slice(in), less_pair,true));
+      RUN_AND_CLEAR(parlay::internal::sample_sort(parlay::make_slice(in), less_pair, true));
     }
   }
 
@@ -616,19 +711,15 @@ static void bench_unstable_sort(benchmark::State& state) {
       default: break;
     }
   }
-  auto less_pair = [&](std::pair<uint64_t, uint64_t> a,
-                       std::pair<uint64_t, uint64_t> b) {
-    return a.first < b.first;
-  };
+  auto less_pair = [&](std::pair<uint64_t, uint64_t> a, std::pair<uint64_t, uint64_t> b) { return a.first < b.first; };
   while (state.KeepRunningBatch(10)) {
     for (int i = 0; i < 10; i++) {
-      RUN_AND_CLEAR(parlay::internal::sample_sort(parlay::make_slice(in), less_pair,false));
+      RUN_AND_CLEAR(parlay::internal::sample_sort(parlay::make_slice(in), less_pair, false));
     }
   }
 
   REPORT_STATS(n, 0, 0);
 }
-
 
 // template<>
 // void bench_sort<parlay::sequence<char>>(benchmark::State& state) {
@@ -669,10 +760,7 @@ static void bench_sort_inplace(benchmark::State& state) {
       default: break;
     }
   }
-  auto less_pair = [&](std::pair<uint64_t, uint64_t> a,
-                       std::pair<uint64_t, uint64_t> b) {
-    return a.first < b.first;
-  };
+  auto less_pair = [&](std::pair<uint64_t, uint64_t> a, std::pair<uint64_t, uint64_t> b) { return a.first < b.first; };
   auto out = in;
 
   while (state.KeepRunningBatch(10)) {
@@ -883,9 +971,16 @@ static void bench_group_by_key(benchmark::State& state) {
       default: break;
     }
   }
+  parlay::sequence<mypair<uint64_t, uint64_t>> SS(n);
+  parallel_for(0, n, [&](size_t i) {
+    SS[i].first = S[i].first;
+    SS[i].second = S[i].second;
+  });
   while (state.KeepRunningBatch(10)) {
     for (int i = 0; i < 10; i++) {
-      RUN_AND_CLEAR(parlay::group_by_key(S));
+      // RUN_AND_CLEAR(parlay::group_by_key(S));
+      RUN_AND_CLEAR(parlay::group_by_key(parlay::make_slice(S)));
+          // parlay::make_slice(SS), [&](mypair<uint64_t, uint64_t> a) { return a.first ; }));
     }
   }
   REPORT_STATS(n, 0, 0);
@@ -895,11 +990,10 @@ template<>
 void bench_group_by_key<parlay::sequence<char>>(benchmark::State& state) {
 
   using T = parlay::sequence<char>;
-  using par = std::pair<T,size_t>;
+  using par = std::pair<T, size_t>;
   size_t n = state.range(0);
   ngram_table words;
-  auto S = parlay::tabulate(n, [&] (size_t i) {
-      return par(words.word(i), i);});
+  auto S = parlay::tabulate(n, [&](size_t i) { return par(words.word(i), i); });
   parlay::sequence<par> Tmp;
   for (auto _ : state) {
     COPY_NO_TIME(Tmp, S);
@@ -1027,40 +1121,36 @@ static void bench_group_by_index_256(benchmark::State& state) {
 // BENCH(integer_sort_pair, unsigned long, 41);
 // BENCH(integer_sort_pair, unsigned long, 42);
 // BENCH(integer_sort_pair, unsigned long, 43);
-BENCH(integer_sort_pair, unsigned long, 44);
 
-
-
-
-// BENCH(integer_sort_128, __int128, 100000000);
-BENCH(unstable_sort, unsigned long, 4);
-BENCH(unstable_sort, unsigned long, 5);
-BENCH(unstable_sort, unsigned long, 6);
-BENCH(unstable_sort, unsigned long, 7);
-BENCH(unstable_sort, unsigned long, 8);
-BENCH(unstable_sort, unsigned long, 9);
-BENCH(unstable_sort, unsigned long, 10);
-BENCH(unstable_sort, unsigned long, 11);
-BENCH(unstable_sort, unsigned long, 12);
-BENCH(unstable_sort, unsigned long, 13);
-BENCH(unstable_sort, unsigned long, 14);
-BENCH(unstable_sort, unsigned long, 15);
-BENCH(unstable_sort, unsigned long, 16);
-BENCH(unstable_sort, unsigned long, 17);
-BENCH(unstable_sort, unsigned long, 18);
-BENCH(unstable_sort, unsigned long, 21);
-BENCH(unstable_sort, unsigned long, 22);
-BENCH(unstable_sort, unsigned long, 23);
-BENCH(unstable_sort, unsigned long, 24);
-BENCH(unstable_sort, unsigned long, 25);
-BENCH(unstable_sort, unsigned long, 26);
-BENCH(unstable_sort, unsigned long, 27);
-BENCH(unstable_sort, unsigned long, 30);
-BENCH(unstable_sort, unsigned long, 31);
-BENCH(unstable_sort, unsigned long, 32);
-BENCH(unstable_sort, unsigned long, 33);
-BENCH(unstable_sort, unsigned long, 34);
-BENCH(unstable_sort, unsigned long, 35);
+// // BENCH(integer_sort_128, __int128, 100000000);
+// BENCH(unstable_sort, unsigned long, 4);
+// BENCH(unstable_sort, unsigned long, 5);
+// BENCH(unstable_sort, unsigned long, 6);
+// BENCH(unstable_sort, unsigned long, 7);
+// BENCH(unstable_sort, unsigned long, 8);
+// BENCH(unstable_sort, unsigned long, 9);
+// BENCH(unstable_sort, unsigned long, 10);
+// BENCH(unstable_sort, unsigned long, 11);
+// BENCH(unstable_sort, unsigned long, 12);
+// BENCH(unstable_sort, unsigned long, 13);
+// BENCH(unstable_sort, unsigned long, 14);
+// BENCH(unstable_sort, unsigned long, 15);
+// BENCH(unstable_sort, unsigned long, 16);
+// BENCH(unstable_sort, unsigned long, 17);
+// BENCH(unstable_sort, unsigned long, 18);
+// BENCH(unstable_sort, unsigned long, 21);
+// BENCH(unstable_sort, unsigned long, 22);
+// BENCH(unstable_sort, unsigned long, 23);
+// BENCH(unstable_sort, unsigned long, 24);
+// BENCH(unstable_sort, unsigned long, 25);
+// BENCH(unstable_sort, unsigned long, 26);
+// BENCH(unstable_sort, unsigned long, 27);
+// BENCH(unstable_sort, unsigned long, 30);
+// BENCH(unstable_sort, unsigned long, 31);
+// BENCH(unstable_sort, unsigned long, 32);
+// BENCH(unstable_sort, unsigned long, 33);
+// BENCH(unstable_sort, unsigned long, 34);
+// BENCH(unstable_sort, unsigned long, 35);
 // BENCH(unstable_sort, unsigned long, 38);
 // BENCH(unstable_sort, unsigned long, 39);
 // BENCH(unstable_sort, unsigned long, 40);
@@ -1069,36 +1159,34 @@ BENCH(unstable_sort, unsigned long, 35);
 // BENCH(unstable_sort, unsigned long, 43);
 // BENCH(unstable_sort, unsigned long, 44);
 
-
-
-BENCH(stable_sort, unsigned long, 4);
-BENCH(stable_sort, unsigned long, 5);
-BENCH(stable_sort, unsigned long, 6);
-BENCH(stable_sort, unsigned long, 7);
-BENCH(stable_sort, unsigned long, 8);
-BENCH(stable_sort, unsigned long, 9);
-BENCH(stable_sort, unsigned long, 10);
-BENCH(stable_sort, unsigned long, 11);
-BENCH(stable_sort, unsigned long, 12);
-BENCH(stable_sort, unsigned long, 13);
-BENCH(stable_sort, unsigned long, 14);
-BENCH(stable_sort, unsigned long, 15);
-BENCH(stable_sort, unsigned long, 16);
-BENCH(stable_sort, unsigned long, 17);
-BENCH(stable_sort, unsigned long, 18);
-BENCH(stable_sort, unsigned long, 21);
-BENCH(stable_sort, unsigned long, 22);
-BENCH(stable_sort, unsigned long, 23);
-BENCH(stable_sort, unsigned long, 24);
-BENCH(stable_sort, unsigned long, 25);
-BENCH(stable_sort, unsigned long, 26);
-BENCH(stable_sort, unsigned long, 27);
-BENCH(stable_sort, unsigned long, 30);
-BENCH(stable_sort, unsigned long, 31);
-BENCH(stable_sort, unsigned long, 32);
-BENCH(stable_sort, unsigned long, 33);
-BENCH(stable_sort, unsigned long, 34);
-BENCH(stable_sort, unsigned long, 35);
+// BENCH(stable_sort, unsigned long, 4);
+// BENCH(stable_sort, unsigned long, 5);
+// BENCH(stable_sort, unsigned long, 6);
+// BENCH(stable_sort, unsigned long, 7);
+// BENCH(stable_sort, unsigned long, 8);
+// BENCH(stable_sort, unsigned long, 9);
+// BENCH(stable_sort, unsigned long, 10);
+// BENCH(stable_sort, unsigned long, 11);
+// BENCH(stable_sort, unsigned long, 12);
+// BENCH(stable_sort, unsigned long, 13);
+// BENCH(stable_sort, unsigned long, 14);
+// BENCH(stable_sort, unsigned long, 15);
+// BENCH(stable_sort, unsigned long, 16);
+// BENCH(stable_sort, unsigned long, 17);
+// BENCH(stable_sort, unsigned long, 18);
+// BENCH(stable_sort, unsigned long, 21);
+// BENCH(stable_sort, unsigned long, 22);
+// BENCH(stable_sort, unsigned long, 23);
+// BENCH(stable_sort, unsigned long, 24);
+// BENCH(stable_sort, unsigned long, 25);
+// BENCH(stable_sort, unsigned long, 26);
+// BENCH(stable_sort, unsigned long, 27);
+// BENCH(stable_sort, unsigned long, 30);
+// BENCH(stable_sort, unsigned long, 31);
+// BENCH(stable_sort, unsigned long, 32);
+// BENCH(stable_sort, unsigned long, 33);
+// BENCH(stable_sort, unsigned long, 34);
+// BENCH(stable_sort, unsigned long, 35);
 // BENCH(stable_sort, unsigned long, 38);
 // BENCH(stable_sort, unsigned long, 39);
 // BENCH(stable_sort, unsigned long, 40);
@@ -1109,34 +1197,34 @@ BENCH(stable_sort, unsigned long, 35);
 // BENCH(sort, long, 100000000);
 // BENCH(sort, __int128, 100000000);
 // BENCH(sort, parlay::sequence<char>, 100000000);
-BENCH(sort_inplace, unsigned long, 4);
-BENCH(sort_inplace, unsigned long, 5);
-BENCH(sort_inplace, unsigned long, 6);
-BENCH(sort_inplace, unsigned long, 7);
-BENCH(sort_inplace, unsigned long, 8);
-BENCH(sort_inplace, unsigned long, 9);
-BENCH(sort_inplace, unsigned long, 10);
-BENCH(sort_inplace, unsigned long, 11);
-BENCH(sort_inplace, unsigned long, 12);
-BENCH(sort_inplace, unsigned long, 13);
-BENCH(sort_inplace, unsigned long, 14);
-BENCH(sort_inplace, unsigned long, 15);
-BENCH(sort_inplace, unsigned long, 16);
-BENCH(sort_inplace, unsigned long, 17);
-BENCH(sort_inplace, unsigned long, 18);
-BENCH(sort_inplace, unsigned long, 21);
-BENCH(sort_inplace, unsigned long, 22);
-BENCH(sort_inplace, unsigned long, 23);
-BENCH(sort_inplace, unsigned long, 24);
-BENCH(sort_inplace, unsigned long, 25);
-BENCH(sort_inplace, unsigned long, 26);
-BENCH(sort_inplace, unsigned long, 27);
-BENCH(sort_inplace, unsigned long, 30);
-BENCH(sort_inplace, unsigned long, 31);
-BENCH(sort_inplace, unsigned long, 32);
-BENCH(sort_inplace, unsigned long, 33);
-BENCH(sort_inplace, unsigned long, 34);
-BENCH(sort_inplace, unsigned long, 35);
+// BENCH(sort_inplace, unsigned long, 4);
+// BENCH(sort_inplace, unsigned long, 5);
+// BENCH(sort_inplace, unsigned long, 6);
+// BENCH(sort_inplace, unsigned long, 7);
+// BENCH(sort_inplace, unsigned long, 8);
+// BENCH(sort_inplace, unsigned long, 9);
+// BENCH(sort_inplace, unsigned long, 10);
+// BENCH(sort_inplace, unsigned long, 11);
+// BENCH(sort_inplace, unsigned long, 12);
+// BENCH(sort_inplace, unsigned long, 13);
+// BENCH(sort_inplace, unsigned long, 14);
+// BENCH(sort_inplace, unsigned long, 15);
+// BENCH(sort_inplace, unsigned long, 16);
+// BENCH(sort_inplace, unsigned long, 17);
+// BENCH(sort_inplace, unsigned long, 18);
+// BENCH(sort_inplace, unsigned long, 21);
+// BENCH(sort_inplace, unsigned long, 22);
+// BENCH(sort_inplace, unsigned long, 23);
+// BENCH(sort_inplace, unsigned long, 24);
+// BENCH(sort_inplace, unsigned long, 25);
+// BENCH(sort_inplace, unsigned long, 26);
+// BENCH(sort_inplace, unsigned long, 27);
+// BENCH(sort_inplace, unsigned long, 30);
+// BENCH(sort_inplace, unsigned long, 31);
+// BENCH(sort_inplace, unsigned long, 32);
+// BENCH(sort_inplace, unsigned long, 33);
+// BENCH(sort_inplace, unsigned long, 34);
+// BENCH(sort_inplace, unsigned long, 35);
 // BENCH(sort_inplace, unsigned long, 38);
 // BENCH(sort_inplace, unsigned long, 39);
 // BENCH(sort_inplace, unsigned long, 40);
@@ -1161,28 +1249,28 @@ BENCH(sort_inplace, unsigned long, 35);
 // BENCH(reduce_by_key, unsigned long, 100000000);
 // BENCH(histogram_by_key, unsigned long, 100000000);
 // BENCH(remove_duplicates, unsigned long, 100000000);
-BENCH(group_by_key, unsigned long, 4);
-BENCH(group_by_key, unsigned long, 5);
-BENCH(group_by_key, unsigned long, 6);
-BENCH(group_by_key, unsigned long, 7);
-BENCH(group_by_key, unsigned long, 8);
-BENCH(group_by_key, unsigned long, 9);
-BENCH(group_by_key, unsigned long, 10);
-BENCH(group_by_key, unsigned long, 11);
-BENCH(group_by_key, unsigned long, 12);
-BENCH(group_by_key, unsigned long, 13);
-BENCH(group_by_key, unsigned long, 14);
-BENCH(group_by_key, unsigned long, 15);
-BENCH(group_by_key, unsigned long, 16);
-BENCH(group_by_key, unsigned long, 17);
-BENCH(group_by_key, unsigned long, 18);
-BENCH(group_by_key, unsigned long, 21);
-BENCH(group_by_key, unsigned long, 22);
-BENCH(group_by_key, unsigned long, 23);
-BENCH(group_by_key, unsigned long, 24);
-BENCH(group_by_key, unsigned long, 25);
-BENCH(group_by_key, unsigned long, 26);
-BENCH(group_by_key, unsigned long, 27);
+// BENCH(group_by_key, unsigned long, 4);
+// BENCH(group_by_key, unsigned long, 5);
+// BENCH(group_by_key, unsigned long, 6);
+// BENCH(group_by_key, unsigned long, 7);
+// BENCH(group_by_key, unsigned long, 8);
+// BENCH(group_by_key, unsigned long, 9);
+// BENCH(group_by_key, unsigned long, 10);
+// BENCH(group_by_key, unsigned long, 11);
+// BENCH(group_by_key, unsigned long, 12);
+// BENCH(group_by_key, unsigned long, 13);
+// BENCH(group_by_key, unsigned long, 14);
+// BENCH(group_by_key, unsigned long, 15);
+// BENCH(group_by_key, unsigned long, 16);
+// BENCH(group_by_key, unsigned long, 17);
+// BENCH(group_by_key, unsigned long, 18);
+// BENCH(group_by_key, unsigned long, 21);
+// BENCH(group_by_key, unsigned long, 22);
+// BENCH(group_by_key, unsigned long, 23);
+// BENCH(group_by_key, unsigned long, 24);
+// BENCH(group_by_key, unsigned long, 25);
+// BENCH(group_by_key, unsigned long, 26);
+// BENCH(group_by_key, unsigned long, 27);
 BENCH(group_by_key, unsigned long, 30);
 BENCH(group_by_key, unsigned long, 31);
 BENCH(group_by_key, unsigned long, 32);
@@ -1198,34 +1286,34 @@ BENCH(group_by_key, unsigned long, 35);
 // BENCH(group_by_key, unsigned long, 44);
 // BENCH(group_by_key_sorted, unsigned long)->Args(4)
 //                                         ->Args(5);
-BENCH(group_by_key_sorted, unsigned long, 4);
-BENCH(group_by_key_sorted, unsigned long, 5);
-BENCH(group_by_key_sorted, unsigned long, 6);
-BENCH(group_by_key_sorted, unsigned long, 7);
-BENCH(group_by_key_sorted, unsigned long, 8);
-BENCH(group_by_key_sorted, unsigned long, 9);
-BENCH(group_by_key_sorted, unsigned long, 10);
-BENCH(group_by_key_sorted, unsigned long, 11);
-BENCH(group_by_key_sorted, unsigned long, 12);
-BENCH(group_by_key_sorted, unsigned long, 13);
-BENCH(group_by_key_sorted, unsigned long, 14);
-BENCH(group_by_key_sorted, unsigned long, 15);
-BENCH(group_by_key_sorted, unsigned long, 16);
-BENCH(group_by_key_sorted, unsigned long, 17);
-BENCH(group_by_key_sorted, unsigned long, 18);
+// BENCH(group_by_key_sorted, unsigned long, 4);
+// BENCH(group_by_key_sorted, unsigned long, 5);
+// BENCH(group_by_key_sorted, unsigned long, 6);
+// BENCH(group_by_key_sorted, unsigned long, 7);
+// BENCH(group_by_key_sorted, unsigned long, 8);
+// BENCH(group_by_key_sorted, unsigned long, 9);
+// BENCH(group_by_key_sorted, unsigned long, 10);
+// BENCH(group_by_key_sorted, unsigned long, 11);
+// BENCH(group_by_key_sorted, unsigned long, 12);
+// BENCH(group_by_key_sorted, unsigned long, 13);
+// BENCH(group_by_key_sorted, unsigned long, 14);
+// BENCH(group_by_key_sorted, unsigned long, 15);
+// BENCH(group_by_key_sorted, unsigned long, 16);
+// BENCH(group_by_key_sorted, unsigned long, 17);
+// BENCH(group_by_key_sorted, unsigned long, 18);
 BENCH(group_by_key_sorted, unsigned long, 21);
-BENCH(group_by_key_sorted, unsigned long, 22);
-BENCH(group_by_key_sorted, unsigned long, 23);
-BENCH(group_by_key_sorted, unsigned long, 24);
-BENCH(group_by_key_sorted, unsigned long, 25);
-BENCH(group_by_key_sorted, unsigned long, 26);
-BENCH(group_by_key_sorted, unsigned long, 27);
-BENCH(group_by_key_sorted, unsigned long, 30);
-BENCH(group_by_key_sorted, unsigned long, 31);
-BENCH(group_by_key_sorted, unsigned long, 32);
-BENCH(group_by_key_sorted, unsigned long, 33);
-BENCH(group_by_key_sorted, unsigned long, 34);
-BENCH(group_by_key_sorted, unsigned long, 35);
+// BENCH(group_by_key_sorted, unsigned long, 22);
+// BENCH(group_by_key_sorted, unsigned long, 23);
+// BENCH(group_by_key_sorted, unsigned long, 24);
+// BENCH(group_by_key_sorted, unsigned long, 25);
+// BENCH(group_by_key_sorted, unsigned long, 26);
+// BENCH(group_by_key_sorted, unsigned long, 27);
+// BENCH(group_by_key_sorted, unsigned long, 30);
+// BENCH(group_by_key_sorted, unsigned long, 31);
+// BENCH(group_by_key_sorted, unsigned long, 32);
+// BENCH(group_by_key_sorted, unsigned long, 33);
+// BENCH(group_by_key_sorted, unsigned long, 34);
+// BENCH(group_by_key_sorted, unsigned long, 35);
 // BENCH(group_by_key_sorted, unsigned long, 38);
 // BENCH(group_by_key_sorted, unsigned long, 39);
 // BENCH(group_by_key_sorted, unsigned long, 40);
@@ -1238,3 +1326,32 @@ BENCH(group_by_key_sorted, unsigned long, 35);
 // BENCH(histogram_by_key, parlay::sequence<char>, 100000000);
 // BENCH(remove_duplicates, parlay::sequence<char>, 100000000);
 // BENCH(group_by_key, parlay::sequence<char>, 100000000);
+
+BENCH(integer_sort_inplace, unsigned long, 4);
+BENCH(integer_sort_inplace, unsigned long, 5);
+BENCH(integer_sort_inplace, unsigned long, 6);
+BENCH(integer_sort_inplace, unsigned long, 7);
+BENCH(integer_sort_inplace, unsigned long, 8);
+BENCH(integer_sort_inplace, unsigned long, 9);
+BENCH(integer_sort_inplace, unsigned long, 10);
+BENCH(integer_sort_inplace, unsigned long, 11);
+BENCH(integer_sort_inplace, unsigned long, 12);
+BENCH(integer_sort_inplace, unsigned long, 13);
+BENCH(integer_sort_inplace, unsigned long, 14);
+BENCH(integer_sort_inplace, unsigned long, 15);
+BENCH(integer_sort_inplace, unsigned long, 16);
+BENCH(integer_sort_inplace, unsigned long, 17);
+BENCH(integer_sort_inplace, unsigned long, 18);
+BENCH(integer_sort_inplace, unsigned long, 21);
+BENCH(integer_sort_inplace, unsigned long, 22);
+BENCH(integer_sort_inplace, unsigned long, 23);
+BENCH(integer_sort_inplace, unsigned long, 24);
+BENCH(integer_sort_inplace, unsigned long, 25);
+BENCH(integer_sort_inplace, unsigned long, 26);
+BENCH(integer_sort_inplace, unsigned long, 27);
+BENCH(integer_sort_inplace, unsigned long, 30);
+BENCH(integer_sort_inplace, unsigned long, 31);
+BENCH(integer_sort_inplace, unsigned long, 32);
+BENCH(integer_sort_inplace, unsigned long, 33);
+BENCH(integer_sort_inplace, unsigned long, 34);
+BENCH(integer_sort_inplace, unsigned long, 35);
